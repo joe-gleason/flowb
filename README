@@ -4,6 +4,8 @@ flowb [Flow builder]
    A STAGE consists of 1 or more TASKs
    A TASK is an item that executes (i.e. script)
 
+   Returns a non-zero exit code if any task fails
+
 [File Structure]
 
    bin/
@@ -25,3 +27,15 @@ flowb [Flow builder]
    profiles/                     When started via flowb.sh we can source profiles
       profile.flowb              Always sourced
       profile.<project>
+
+[Outputs]
+
+   <USER_LAUNCH_DIR>/            Directory where user launched from
+
+      results/                   Created by flowb
+         output/                 Global output directory - All tasks and stages can use (helpful for linking tasks)
+         <stage_name_A>          Stage name found in flow file
+            output/              Output directory for the stage
+         <stage_name_B>          (...)
+            output/              (...)
+
