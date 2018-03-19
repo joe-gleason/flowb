@@ -1,0 +1,14 @@
+[
+   {  
+      "name"                  : "git_diff",
+      "serial"                : true,
+      "timeout_sec"           : 180,
+      "task_continue_on_fail" : false,
+      "stage_continue_on_fail": false,
+      "tasks"      : [
+         {"name":"git_diff"      , "task":"GitDiff"},
+         {"name":"pretty_json"   , "task":"PrettyJson", "args" :{"file":"git_diff.json"}}
+      ]
+   }
+
+]

@@ -1,0 +1,20 @@
+Run a pipeline configuration file.
+pipeline       JSON structure composed of 1 or more stages
+   stages      Stages are composed of 1 or more tasks
+      tasks    Tasks are single things to run
+
+[File Structure]
+
+   bin/
+      flowb                      
+
+   config/
+      config.py                  Data structure - Used to resolve flow file based on project,branch,flow
+
+   flows/                        Holds flow files.  Flow files describe stages and their tasks to run.
+      verifier.json              JSON structure defining a flow
+
+   tasks/                        Directory of tasks (executable scripts), subdirs are OK
+      taskA
+      taskB
+      foo/taskA

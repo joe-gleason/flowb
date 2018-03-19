@@ -1,0 +1,169 @@
+#!/usr/bin/env perl
+
+package GitDiff;
+
+use JSON;
+use Data::Dumper;
+use File::Temp qw/tempfile/;
+use strict 'vars';
+use warnings;
+
+sub gitDiffParents {
+   my($sha) = @_;
+
+   my @files = ();
+   my @name_status = ();
+
+   my $revList = `git rev-list --parents -n 1 $sha`;
+   my ($currSha,@parentSha) = split(/\s+/,$revList);
+
+   # Merge commits could have multiple parents
+   # We will diff both parents
+   #
+   foreach my $parentSha (@parentSha) {
+      my @diffFiles = `git diff --numstat $parentSha $currSha`;
+      my @nameStat  = `git diff --name-status $parentSha $currSha`;
+      push @files,@diffFiles;
+      push @name_status,@nameStat;
+   }
+
+   return(\@files,\@name_status);
+}
+
+sub gitDiff {
+   my($sha1,$sha2) = @_;
+
+   my $results = {
+      files_raw      => [],
+      files          => {},
+      dirs_added     => [],
+      dirs_removed   => [],
+      name_status    => [],
+   };
+
+   my @files         = ();
+   my @name_status   = ();
+
+   ##  SHA1     SHA2
+   ##  A              Finds things changed between A and A~1
+   ##  A        B     Finds things in B not in A
+   ##                 Checks for local mods then HEAD and HEAD~1
+
+   if(defined($sha1) && $sha1 !~ /^\s*$/) {
+
+      # SHA1 is defined
+      
+      if(defined($sha2) && $sha2 !~ /^\s*$/) {
+         
+         # Both SHA defined
+         # Comparing 2 points in time
+
+         @files         = `git diff --numstat $sha1 $sha2`;
+         @name_status   = `git diff --name-status $sha1 $sha2`;
+
+      } else {
+
+         # Only SHA1 defined
+         # Get the diffs of that SHA
+         # 
+         # WE DO NOT TAKE INTO ACCOUNT LOCAL MODS here
+         #
+         my($filesRef,$nameStatRef) = gitDiffParents($sha1);
+
+         # Passing only 1 sha will also give items in the working directory as well 
+         @files         = @{$filesRef};
+         @name_status   = @{$nameStatRef};
+      }
+
+   } else {
+
+      # User has NOT specified a SHA
+      # Check for local mods first
+   
+      # Check for locally modified
+      #
+      @files       = `git diff --numstat HEAD`;
+      @name_status = `git diff --name-status HEAD`;
+      
+      # If no local mods check what changed in HEAD
+      #
+      if(!@files) {
+         # NO LOCAL MODS
+         #
+         # Just collect the diffs from HEAD
+         my($filesRef,$nameStatRef) = gitDiffParents('HEAD');
+         
+         @files         = @{$filesRef};
+         @name_status   = @{$nameStatRef};
+      }
+
+   }
+
+   chomp(@files);
+   $results->{files_raw} = \@files;
+   
+   chomp(@name_status);
+   $results->{name_status} = \@name_status;
+   
+   #print Dumper(\@files);
+   #print Dumper(\@name_status);
+   #exit;
+
+   foreach my $line(@files) {
+      my($linesAdded,$linesDeleted,$path)          = split(/\s+/,$line);
+      $results->{files}->{$path}->{lines_added}    = $linesAdded;
+      $results->{files}->{$path}->{lines_removed}  = $linesDeleted;
+   }
+
+   if(defined($sha2) && $sha2 !~ /^\s*$/) {
+      my ($CURR_FH,$currTempFile) = tempfile(DIR => "$ENV{PWD}", UNLINK => 1);
+      my ($PREV_FH,$prevTempFile) = tempfile(DIR => "$ENV{PWD}", UNLINK => 1);
+
+      my $command = "git ls-tree -r --name-status --full-tree -d $sha2 > $currTempFile";
+      system($command)==0 or die "Error running command [$command]\n";
+      
+      $command = "git ls-tree -r --name-status --full-tree -d $sha1 > $prevTempFile";
+      system($command)==0 or die "Error running command [$command]\n";
+
+      my @diffLines = `diff $prevTempFile $currTempFile`;
+      chomp(@diffLines);
+
+      my @dirsAdd = grep {defined($_)} map {/^>\s*(\S+.*)/;$1} @diffLines;
+      my @dirsRem = grep {defined($_)} map {/^<\s*(\S+.*)/;$1} @diffLines;
+
+      $results->{dirs_added}   = \@dirsAdd;
+      $results->{dirs_removed} = \@dirsRem;
+      $results->{sha1} = $sha1;
+      $results->{sha2} = $sha2;
+
+      close $CURR_FH;
+      close $PREV_FH;
+   }
+   
+   return $results;
+}
+
+sub run {
+   my $jsonFile = shift;
+   my $text = `cat $jsonFile`;
+   my $jsonData = from_json($text);
+
+   my $outputDir  = $jsonData->{PATHS}->{OUTPUT_DIR};
+   my $outputFile = "$outputDir/git_diff.json";
+   my $ref = gitDiff();
+
+   open(FILE,"+>$outputFile") or die "Can't open output file\n";
+   my $data = to_json($ref);
+   $data =~ s/\\t/   /smg;
+   print FILE $data;
+   close(FILE)
+}
+
+
+package main;
+
+if($0 eq __FILE__) {
+   my $ref = GitDiff::run($ARGV[0]);
+}
+
+1;

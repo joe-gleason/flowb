@@ -1,0 +1,62 @@
+[
+   {  
+      "name"                  : "STAGE-0",
+      "serial"                : false,
+      "timeout_sec"           : 20,
+      "task_continue_on_fail" : true,
+      "stage_continue_on_fail": true,
+      "tasks"      : [
+         {"name":"python_print_0" , "task":"print.py"                            } ,
+         {"name":"python_print_1" , "task":"print"                               } ,
+         {"name":"perl_print_0"   , "task":"${HOME}/pipeline/tasks/perl/print.pl"                       } ,
+         {"name":"perl_print_1"   , "task":"perl/print"                          } ,
+         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":10   ,"delay_begin_sec" : 9, "delay_end_sec" : 2}
+      ]
+   },
+
+   {  
+      "name"                  : "STAGE-1",
+      "serial"                : false,
+      "timeout_sec"           : 3,
+      "task_continue_on_fail" : true,
+      "stage_continue_on_fail": true,
+      "tasks"      : [
+         {"name":"python_print_0" , "task":"print.py"                            } ,
+         {"name":"python_print_1" , "task":"print"                               } ,
+         {"name":"perl_print_0"   , "task":"perl/print.pl"                       } ,
+         {"name":"perl_print_1"   , "task":"perl/print"                          } ,
+         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":10   }
+      ]
+   },
+
+   {  
+      "name"                  : "STAGE-2",
+      "serial"                : true,
+      "timeout_sec"           : 20,
+      "task_continue_on_fail" : false,
+      "stage_continue_on_fail": true,
+      "tasks"      : [
+         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":3    } ,
+         {"name":"python_print_0" , "task":"print.py"                            } ,
+         {"name":"python_print_1" , "task":"print"                               } ,
+         {"name":"perl_print_0"   , "task":"perl/print.pl"                       } ,
+         {"name":"perl_print_1"   , "task":"perl/print"                          } 
+      ]
+   },
+
+   {  
+      "name"                  : "STAGE-3",
+      "serial"                : true,
+      "timeout_sec"           : 20,
+      "task_continue_on_fail" : true,
+      "stage_continue_on_fail": false,
+      "tasks"      : [
+         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":3    } ,
+         {"name":"python_print_0" , "task":"print.py"                            } ,
+         {"name":"python_print_1" , "task":"print"                               } ,
+         {"name":"perl_print_0"   , "task":"perl/print.pl"                       } ,
+         {"name":"perl_print_1"   , "task":"perl/print"                          } 
+      ]
+   }
+
+]
