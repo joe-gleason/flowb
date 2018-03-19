@@ -7,7 +7,9 @@ flowb [Flow builder]
 [File Structure]
 
    bin/
-      flowb                      
+      flowb.py                   Python executable
+      flowb                      Symlink to python executable
+      flowb.sh                   Allows for sourcing of profile/ files before executing
 
    config/
       config.py                  Data structure - Used to resolve flow file based on project,branch,flow
@@ -19,3 +21,7 @@ flowb [Flow builder]
       taskA
       taskB
       foo/taskA
+
+   profiles/                     When started via flowb.sh we can source profiles
+      profile.flowb              Always sourced
+      profile.<project>

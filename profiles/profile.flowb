@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+# Labtools
+#
+unset PERL5LIB
+source /p/svl/p1/labtools/lt_env
+export LAB_TOOLS_PERL=/p/svl/p1/pubtools/perl/latest/bin
+
+# Add the hpn_jenkins bin repo to the path
+#
+export PATH=$PATH:/nis/asic/rosewood/base/jenkins_scripts/bin
