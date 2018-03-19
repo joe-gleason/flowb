@@ -123,7 +123,7 @@ fi
 echo "Sourcing profile [$profile]"
 source $profile
 
-# Depending on the GERRIT_PROJECT we source the necessary profile
+# Depending on the PROJECT we source the necessary profile
 #  profile.hpn_rosewood
 #  profile.hpn_jenkins
 #  profile.<tbd>
