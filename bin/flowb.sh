@@ -53,12 +53,16 @@ shift $(($OPTIND - 1))
 
 whoami="$(readlink -f $0)"
 toolName="$(basename $whoami)"
+toolName=${toolName%%.*}
 binDir="$(dirname $whoami)"
 versionDir="$(dirname $binDir)"
 version="$(basename $versionDir)"
 libDir="$versionDir/lib"
 profileDir="$versionDir/profiles"
 currDir="$(pwd)"
+
+exe_build_project=`git -C $currDir remote show origin | grep "Fetch URL:" | sed "s-^.*/\(.*\)-\1-" | xargs -i basename {}`
+exe_build_project=${exe_build_project%%.*}
 
 export FLOWB_ORIG_DIR=$currDir
 
@@ -77,8 +81,6 @@ if [ -z "$JENKINS_HOME" ];then
 fi
 
 # PROJECT
-#  If running in gerrit project will be $GERRIT_PROJECT
-#  Otherwise we will detect via a git command
 if [ "${opt_build_project:-unset}" = unset ]; then
    opt_build_project=`git remote show origin | grep "Fetch URL:" | sed "s-^.*/\(.*\)-\1-" | xargs -i basename {}`
    opt_build_project=${opt_build_project%%.*}
@@ -86,8 +88,6 @@ if [ "${opt_build_project:-unset}" = unset ]; then
 fi
 
 # BRANCH
-#  If running in gerrit branch will be $GERRIT_BRANCH
-#  Otherwise we will detect via a git call
 if [ "${opt_build_branch:-unset}" = unset ]; then
    opt_build_branch=`git rev-parse --abbrev-ref HEAD`
    echo "Detecting branch as [$opt_build_branch]"
@@ -106,10 +106,10 @@ fi
 #   if that is our project then lets run things locally from the repo
 #   this allows us to upload changes to the repo and have those run instead
 #
-if [ $opt_build_project = "hpn_jenkins" ]; then 
-   echo "We are currently in hpn_jenkins, run local files to pick up changes"
-   profileDir="$currDir/bin/tools/jenkins_builder/$version/profiles"
-   binDir="$currDir/bin/tools/jenkins_builder/$version/bin"
+if [ $opt_build_project = $exe_build_project ]; then 
+   echo "We are currently in project [$exe_build_project], run local files to pick up changes"
+   #profileDir="$currDir/bin/tools/flowb/$version/profiles"
+   #binDir="$currDir/bin/tools/flowb/$version/bin"
 fi
 
 
