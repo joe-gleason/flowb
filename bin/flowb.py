@@ -5,6 +5,7 @@ import os
 import json
 import subprocess 
 import re
+import signal
 from pprint import pprint
 from time import ctime,sleep
 from threading import Timer
@@ -153,7 +154,16 @@ def init():
     if not OPTS['flow_file']:
         sys.exit("ERROR: No flow file (i.e. --flow_file) and unable to resolve based on project,branch,flow options")
 
+    print("Establishing interrupt handler")
+    signal.signal(signal.SIGINT, sig_handler)
+    signal.signal(signal.SIGTERM, sig_handler)
+    signal.signal(signal.SIGHUP, sig_handler)
+
 def resolve_flow_file():
+    '''
+    Resolve a flow file
+    See if we can resolve the file based on project,branch,flow
+    '''
 
     global OPTS
     
@@ -168,26 +178,14 @@ def resolve_flow_file():
     DATA = [x for x in DATA if x['branch'].search(branch)]
     DATA = [x for x in DATA if x['flow'].search(flow)]
     
-    #if project:
-    #else:
-    #    sys.exit('ERROR: Project [-p] is not defined')
-    #
-    #if branch:
-    #else:
-    #    sys.exit('ERROR: Branch [-b] is not defined')
-    #
-    #if flow:
-    #else:
-    #    sys.exit('ERROR: Flow [-f] is not defined')
-
     if DATA:
         flow_file = DATA[0]['flow_file']
 
     return flow_file 
 
 def info(msg):
-    #msg = "{} : {}".format(ctime(),msg)
-    msg = "INFO : {}".format(msg)
+    msg = "{} : {}".format(ctime(),msg)
+    #msg = "INFO : {}".format(msg)
     print(msg)    
 
 def banner(msg):
@@ -276,6 +274,9 @@ def wait_for_procs(kill_on_fail=False):
                             p.kill()
                             proc_results[task.task_dir] = "FAIL: Killed because another task failed"
                     sleep(5)
+            else:
+                # Waiting for tasks to complete
+                sleep(10) 
         else:
             # No more tasks remaining
             # Break from the while loop
@@ -294,7 +295,7 @@ def task_init(stage,task):
     task_ref = {
         'name'             : None,
         'task'             : None,
-        'config'           : {},
+        'task_opts'        : {},
         'stage_dir'        : stage['stage_dir'],
         'stage_dir_prev'   : stage['stage_dir_prev'],
         'stage_output_dir' : stage['stage_output_dir'],
@@ -523,6 +524,7 @@ def run(**kwargs):
     '''
     global PATHS
     global OPTS
+    global GENERIC_ERROR
 
     # Resulting exit code
     exit_code = 0
@@ -544,6 +546,10 @@ def run(**kwargs):
     # Create directories
     dir_create(PATHS['RESULTS_DIR'])
     dir_create(PATHS['OUTPUT_DIR'])
+    
+    # Setup some environment variables that tasks can use
+    os.environ["FLOWB_RESULTS_DIR"] = PATHS['RESULTS_DIR']
+    os.environ["FLOWB_OUTPUT_DIR"] = PATHS['OUTPUT_DIR']
 
     # Dump config file to results directory
     results_config = "{}/config.json".format(PATHS['RESULTS_DIR'])
@@ -583,6 +589,10 @@ def run(**kwargs):
             if not stage['stage_continue_on_fail']:
                 break
 
+        if GENERIC_ERROR:
+            print("Breaking due to GENERIC_ERROR")
+            break
+
         # Keep track of previous stage
         stage_dir_prev = stage['stage_dir']
 
@@ -594,6 +604,13 @@ def run(**kwargs):
     pprint(all_stage_results)
 
     return exit_code
+
+def sig_handler(signum,frame):
+    global GENERIC_ERROR
+    GENERIC_ERROR = True
+    print("Signal handler called with signal {}".format(signum))
+    print("Waiting for processes to fail...")
+
 
 if __name__ == "__main__":
     

@@ -156,7 +156,12 @@ sub run {
    my $data = to_json($ref,{pretty=>1});
    $data =~ s/\\t/   /smg;
    print FILE $data;
-   close(FILE)
+   close(FILE);
+
+   $outputFile = "$outputDir/git_diff.pl";
+   open(FILE,"+>$outputFile") or die "Can't open output file\n";
+   print FILE Dumper($ref);
+   close(FILE);
 }
 
 
