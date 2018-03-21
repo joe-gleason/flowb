@@ -14,6 +14,7 @@ TASKS         = []
 OPTS          = {}
 STAGE_TIMER   = None
 STAGE_TIMEOUT = False
+GENERIC_ERROR = False
 
 class Task():
     '''
@@ -129,7 +130,12 @@ def init():
 
     PATHS['BIN_DIR']        = os.path.dirname(os.path.realpath(__file__))
     PATHS['TOOL_DIR']       = os.path.dirname(PATHS['BIN_DIR'])
-    PATHS['TASKS_DIR']      = "{}/tasks".format(PATHS['TOOL_DIR'])
+
+    if OPTS['task_dir']:
+        PATHS['TASKS_DIR']      = os.path.dirname(os.path.realpath(OPTS['task_dir']))
+    else:
+        PATHS['TASKS_DIR']      = "{}/tasks".format(PATHS['TOOL_DIR'])
+        
     PATHS['FLOWS_DIR']      = "{}/flows".format(PATHS['TOOL_DIR'])
     PATHS['CONFIG_DIR']     = "{}/config".format(PATHS['TOOL_DIR'])
     
@@ -197,6 +203,7 @@ def wait_for_procs(kill_on_fail=False):
 
     global TASKS
     global STAGE_TIMEOUT
+    global GENERAL_ERROR
 
     proc_results = {}
 
@@ -247,14 +254,14 @@ def wait_for_procs(kill_on_fail=False):
         if TASKS:            
             # The stage may have timed out
             # Kill all tasks currently running
-            if STAGE_TIMEOUT:
+            if STAGE_TIMEOUT or GENERIC_ERROR:
                 for task in TASKS:
                     p = task.p # Get the process (Popen(...))
                     # If the process isn't done - kill it and provide a reason
                     if not done(p):
                         info("** KILL ** Task [{}]".format(task['name_uniq']))
                         p.kill()
-                        proc_results[task.task_dir] = "FAIL: Killed due to a STAGE_TIMEOUT"
+                        proc_results[task.task_dir] = "FAIL: Killed due to a STAGE_TIMEOUT or GENERIC_ERROR"
                 sleep(5)
 
             elif 'FAIL' in proc_results.values():
@@ -294,6 +301,8 @@ def task_init(stage,task):
         'timeout_sec'      : 0,
         'delay_begin_sec'  : 0,
         'delay_end_sec'    : 0,
+        'task_src'         : None,
+        'command'          : None,
         'PATHS'            : PATHS,
     }
     
@@ -302,7 +311,9 @@ def task_init(stage,task):
         task_ref[opt] = task[opt]
 
     # More config
-    task_ref['task_src']    = resolve_file(task['task'],dirs=[PATHS['TASKS_DIR']],exts=['.py','.pl','.sh'])
+    if task['task'] :
+        task_ref['task_src']    = resolve_file(task['task'],dirs=[PATHS['TASKS_DIR']],exts=['.py','.pl','.sh'])
+
     task_ref['task_dir']    = "{}/{}".format(stage['stage_dir'],task_ref['name'])
     task_ref['config_file'] = "{}/config.json".format(task_ref['task_dir'])
     task_ref['log_file']    = "{}/output.log".format(task_ref['task_dir'])
@@ -343,6 +354,7 @@ def stage_run(stage):
     global TASKS
     global OPTS
     global STAGE_TIMEOUT
+    global GENERIC_ERROR
 
     def done(p):
         return p.poll() is not None
@@ -402,7 +414,13 @@ def stage_run(stage):
             command.append("sleep {}".format(task['delay_begin_sec']))
 
         # The actual script to run
-        command.append("{} {}".format(task['task_src'],task['config_file']))
+        if task['task_src']:
+            command.append("{} {}".format(task['task_src'],task['config_file']))
+        elif task['command']:
+            command.append("{}".format(task['command']))
+        else:
+            GENERIC_ERROR = True
+            print("ERROR: Task {} had neither 'task' or 'command' defined".format(task['name']))            
         
         # Start up delay
         if task['delay_end_sec']:
@@ -417,9 +435,8 @@ def stage_run(stage):
         os.chdir(task['task_dir'])
         task_log_fh = open(task['log_file'],'w')
         p = subprocess.Popen(command,stdout=task_log_fh,stderr=task_log_fh,shell=True)
-        #p = subprocess.Popen(command)
-        os.chdir(PATHS['RESULTS_DIR'])
         task['log_fh'] = task_log_fh
+        os.chdir(PATHS['RESULTS_DIR'])
 
         # Create PROC object
         # Add to global PROC list - used in wait_for_procs()
@@ -470,7 +487,9 @@ def json_parse(f):
     Remove comments #.*
     Replace Environment variables
     '''
-    
+   
+    global OPTS
+
     fh = open(f,"r") 
 
     pattern = re.compile(r'\$\{(\w+)\}')
@@ -490,8 +509,9 @@ def json_parse(f):
 
     fh.close()
 
-    for line in lines:
-        print(line)
+    if OPTS['debug']:
+        for line in lines:
+            print(line)
 
     json_data = json.loads("".join(lines))
     return json_data
@@ -588,6 +608,12 @@ if __name__ == "__main__":
                        default="",
                        help="The branch we are running on"
                        )
+    parser.add_argument("-d","--debug",
+                       action="store",
+                       dest="debug",
+                       default=0,
+                       help="The branch we are running on"
+                       )
     parser.add_argument("-f","--flow",
                        action="store",
                        dest="flow",
@@ -617,6 +643,12 @@ if __name__ == "__main__":
                        dest="tasks",
                        default=None,
                        help="The particular task to run"
+                       )
+    parser.add_argument("-td","--task_dir",
+                       action="store",
+                       dest="task_dir",
+                       default=None,
+                       help="Task directory"
                        )
 
     args = parser.parse_args();

@@ -10,6 +10,7 @@
          {"name":"python_print_1" , "task":"print"                               } ,
          {"name":"perl_print_0"   , "task":"${HOME}/pipeline/tasks/perl/print.pl"                       } ,
          {"name":"perl_print_1"   , "task":"perl/print"                          } ,
+         {"name":"generic_cmd"    , "task": null , "cmd" : "ls -l"                          } ,
          {"name":"sleep"          , "task":"sleep"          , "timeout_sec":10   ,"delay_begin_sec" : 9, "delay_end_sec" : 2}
       ]
    },

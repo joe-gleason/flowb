@@ -153,7 +153,7 @@ sub run {
    my $ref = gitDiff();
 
    open(FILE,"+>$outputFile") or die "Can't open output file\n";
-   my $data = to_json($ref);
+   my $data = to_json($ref,{pretty=>1});
    $data =~ s/\\t/   /smg;
    print FILE $data;
    close(FILE)
