@@ -8,10 +8,10 @@
       "tasks"      : [
          {"name":"python_print_0" , "task":"print.py"                            } ,
          {"name":"python_print_1" , "task":"print"                               } ,
-         {"name":"perl_print_0"   , "task":"${HOME}/pipeline/tasks/perl/print.pl"                       } ,
+         {"name":"perl_print_0"   , "task":"${HOME}/flowb/tasks/perl/print.pl"                       } ,
          {"name":"perl_print_1"   , "task":"perl/print"                          } ,
-         {"name":"generic_cmd"    , "task": null , "cmd" : "ls -l"                          } ,
-         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":10   ,"delay_begin_sec" : 9, "delay_end_sec" : 2}
+         {"name":"generic_cmd"    , "task": null , "command" : "ls -l"                          } ,
+         {"name":"sleep"          , "task":"sleep"          , "timeout_sec":8   ,"delay_begin_sec" : 9, "delay_end_sec" : 2}
       ]
    },
 
@@ -48,7 +48,7 @@
    {  
       "name"                  : "STAGE-3",
       "serial"                : true,
-      "timeout_sec"           : 20,
+      "timeout_sec"           : 21,
       "task_continue_on_fail" : true,
       "stage_continue_on_fail": false,
       "tasks"      : [

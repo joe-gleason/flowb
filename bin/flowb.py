@@ -49,6 +49,12 @@ class Task():
         self._timer = Timer(timeout_sec,self._task_timeout,[],args)
         self._timer.start()
 
+    def kill(self):
+        self.p.kill()
+        if self._timer:
+            self._timer.cancel();
+            self._timer = None      
+    
     def done(self):
         if self._timer:
             #info("Canceling timer on proc [{}]".format(self.name_uniq))
@@ -62,7 +68,7 @@ def stage_timeout(**kwargs):
     '''
     global STAGE_TIMER
     global STAGE_TIMEOUT
-    banner("** STAGE TIMEOUT **")
+    banner(" STAGE TIMEOUT EVENT ",char='%')
     STAGE_TIMEOUT=True
 
 def stage_timer_start(timeout_sec):
@@ -91,7 +97,7 @@ def stage_timer_stop():
 
 def resolve_file(f,dirs=[],exts=[]):
     '''
-    Resolve a file
+    Resolve a file using potential directories and extensions
     '''
     path = None
 
@@ -144,6 +150,7 @@ def init():
     PATHS['RESULTS_DIR']    = "{}/results".format(PATHS['LAUNCH_DIR'])
     PATHS['OUTPUT_DIR']     = "{}/output".format(PATHS['RESULTS_DIR'])
 
+    # Extend PYTHONPATH to include the root of the tool directory
     sys.path.append(PATHS['TOOL_DIR'])
 
     # No --flow_file provided on CLI
@@ -154,7 +161,7 @@ def init():
     if not OPTS['flow_file']:
         sys.exit("ERROR: No flow file (i.e. --flow_file) and unable to resolve based on project,branch,flow options")
 
-    print("Establishing interrupt handler")
+    info("Establishing interrupt handler")
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
     signal.signal(signal.SIGHUP, sig_handler)
@@ -183,17 +190,103 @@ def resolve_flow_file():
 
     return flow_file 
 
-def info(msg):
-    msg = "{} : {}".format(ctime(),msg)
-    #msg = "INFO : {}".format(msg)
+def div(msg=""):
+    msg = "----- {}".format(msg)
     print(msg)    
 
-def banner(msg):
-    print('='*40)
+def info(msg):
+    #msg = "{} : {}".format(ctime(),msg)
+    msg = "INFO : {}".format(msg)
+    print(msg)    
+
+def banner(msg,char='='):
+    print('{}'.format(char)*40)
     print(msg)
-    print('='*40)
+    print('{}'.format(char)*40)
 
 def wait_for_procs(kill_on_fail=False):
+    '''
+    Wait for Proc objects to finish.
+    Optionally KILL remaining procs if 1 fails.
+    '''
+
+    global TASKS
+    global STAGE_TIMEOUT
+    global GENERAL_ERROR
+
+    proc_results = {}
+
+    info("Waiting for proc(s) to finish")
+
+    # Helper functions
+    def done(p):
+        return p.poll() is not None
+    def success(p):
+        return p.returncode == 0
+
+    
+    while True:
+
+        for task in TASKS:
+            
+            # Get the actual process opened by Popen(...
+            p = task.p
+            
+            if STAGE_TIMEOUT or GENERIC_ERROR:
+
+                # If the process isn't done - kill it and provide a reason
+                if not done(p):
+                    info("** KILL ** Task [{}]".format(task['name_uniq']))
+                    proc_results[task.task_dir] = "FAIL: Killed due to a STAGE_TIMEOUT or GENERIC_ERROR"
+                    task.kill()
+                    sleep(1)
+
+                elif 'FAIL' in proc_results.values():
+                    # Any current failures in proc_results
+
+                    if kill_on_fail: # Stage was configured to kill remaining tasks on failures
+
+                        if 'FAIL' not in proc_results[task.task_dir]:
+                            info("** KILL ** Task [{}]".format(task['name_uniq']))
+                            proc_results[task.task_dir] = "FAIL: Killed because another task failed"
+                            task.kill()
+
+            if done(p): # Process Done
+
+                # Turn off the timer if there is one
+                # We don't want it to timeout accidentally
+                task.done()
+
+                # Flush the output file
+                task.log_fh.flush()
+                
+                # Remove the ref from the list
+                TASKS.remove(task)
+                
+                if success(p):
+                    info("** PASS ** Task [{}]".format(task['name_uniq']))
+                    proc_results[task.task_dir] = "PASS"
+                else:
+
+                    # Task timeouts provide their own reason
+                    if task.fail_reason:
+                        proc_results[task.task_dir] = task.fail_reason
+
+                    # Task did not pass
+                    # It may be marked with another state
+                    # Only mark FAIL if it didn't finish for some other reason
+                    if task.task_dir not in proc_results: # May have been marked as KILLED
+                        info("** FAIL ** Task [{}]".format(task['name_uniq']))
+                        proc_results[task.task_dir] = "FAIL"
+                    
+        if TASKS:            
+            sleep(5)
+        else:
+            break
+            
+    return proc_results
+
+def wait_for_procs_orig(kill_on_fail=False):
     '''
     Wait for Proc objects to finish.
     Optionally KILL remaining procs if 1 fails.
@@ -234,6 +327,7 @@ def wait_for_procs(kill_on_fail=False):
                 TASKS.remove(task)
                 
                 if success(p):
+                    print(STAGE_TIMEOUT)
                     info("** PASS ** Task [{}]".format(task['name_uniq']))
                     proc_results[task.task_dir] = "PASS"
                 else:
@@ -253,6 +347,7 @@ def wait_for_procs(kill_on_fail=False):
             # The stage may have timed out
             # Kill all tasks currently running
             if STAGE_TIMEOUT or GENERIC_ERROR:
+                print("Hit a stage timeout")
                 for task in TASKS:
                     p = task.p # Get the process (Popen(...))
                     # If the process isn't done - kill it and provide a reason
@@ -260,6 +355,7 @@ def wait_for_procs(kill_on_fail=False):
                         info("** KILL ** Task [{}]".format(task['name_uniq']))
                         p.kill()
                         proc_results[task.task_dir] = "FAIL: Killed due to a STAGE_TIMEOUT or GENERIC_ERROR"
+                        task.done() # task cleanup - timer cancel
                 sleep(5)
 
             elif 'FAIL' in proc_results.values():
@@ -273,6 +369,7 @@ def wait_for_procs(kill_on_fail=False):
                             info("** KILL ** Task [{}]".format(task['name_uniq']))
                             p.kill()
                             proc_results[task.task_dir] = "FAIL: Killed because another task failed"
+                            task.done() # task cleanup - timer cancel
                     sleep(5)
             else:
                 # Waiting for tasks to complete
@@ -364,7 +461,7 @@ def stage_run(stage):
 
     banner("Stage [{}] START".format(stage['name']))
     pprint(stage)
-    print("--")
+    div()
 
     # Stage results (PASS|FAIL|KILLED) that get returned
     stage_proc_results = {}
@@ -396,7 +493,7 @@ def stage_run(stage):
         if STAGE_TIMEOUT:
             break
         
-        print("--")
+        div() 
 
         # Initialize the task
         task = task_init(stage,task)
@@ -444,8 +541,8 @@ def stage_run(stage):
         proc_ref = Task(p,**task)
         TASKS.append(proc_ref)
         
-        info("Launched task [{}] in directory [{}]".format(proc_ref['name_uniq'],task['task_dir']))
         info("Command [{}]".format(command))
+        info("Launched task [{}] in directory [{}]".format(proc_ref['name_uniq'],task['task_dir']))
 
         # Serial - Process PROC list immediately after adding
         if stage['serial'] == True:
@@ -467,7 +564,7 @@ def stage_run(stage):
     # Parallel - Process after we have added all tasks
     if stage['serial'] == False: # Parallel
         
-        print("--")
+        div()
 
         # When running in parallel we decide whether a failure on 1 task kills the remaining
         kill_on_fail = not stage['task_continue_on_fail']
@@ -578,7 +675,7 @@ def run(**kwargs):
         for proc_name in stage_results:
             all_stage_results[proc_name] = stage_results[proc_name]
             
-        print("--")
+        div()
         banner("Stage [{}] RESULTS".format(stage['name']))
         pprint(stage_results)
         
