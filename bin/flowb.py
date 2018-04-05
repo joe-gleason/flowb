@@ -6,7 +6,7 @@ import json
 import subprocess 
 import re
 import signal
-from pprint import pprint
+from pprint import pprint,pformat
 from time import ctime,sleep
 from threading import Timer
 
@@ -678,6 +678,10 @@ def run(**kwargs):
         div()
         banner("Stage [{}] RESULTS".format(stage['name']))
         pprint(stage_results)
+
+        results_file = "{}/proc_results.log".format(stage['stage_dir'])
+        with open(results_file,'w') as fh:
+            fh.write("{}".format(pformat(stage_results)))
         
         info("Stage [{}] stage_continue_on_fail={}".format(stage['name'],stage['stage_continue_on_fail']))
        
@@ -699,6 +703,10 @@ def run(**kwargs):
 
     banner("ALL STAGE RESULTS")
     pprint(all_stage_results)
+        
+    results_file = "{}/proc_results.log".format(PATHS['RESULTS_DIR'])
+    with open(results_file,'w') as fh:
+        fh.write("{}".format(pformat(all_stage_results)))
 
     return exit_code
 
